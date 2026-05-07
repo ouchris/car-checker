@@ -3,12 +3,12 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 
-app.use(express.static(__dirname));
-
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+
+app.use(express.static(__dirname));
 
 const MARKETCHECK_API_KEY = process.env.MARKETCHECK_API_KEY;
 const cache = new Map();
