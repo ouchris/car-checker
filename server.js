@@ -3,6 +3,8 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 
+app.use(express.static(__dirname));
+
 const app = express();
 app.use(cors());
 app.use(express.json());
