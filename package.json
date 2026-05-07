@@ -2,11 +2,6 @@
   "scripts": {
     "start": "node server.js"
   },
-  "dependencies": {
-    "axios": "...",
-    "express": "..."
-  }
-}
 
 {
   "name": "v6",
