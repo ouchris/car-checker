@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Car Deal Checker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:Inter,Arial,sans-serif; background:#f3f6fb; color:#071426; }
+    .hero { background:linear-gradient(135deg,#0b1220,#14213d); color:white; padding:42px 20px 90px; text-align:center; }
+    .hero h1 { font-size:42px; margin:0; letter-spacing:-1px; }
+    .hero p { color:#cbd5e1; margin-top:10px; font-size:17px; }
+    .container { max-width:1060px; margin:-64px auto 50px; padding:0 20px; }
+    .card { background:white; border-radius:22px; padding:24px; margin-bottom:22px; box-shadow:0 16px 40px rgba(15,23,42,.08); }
+    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+    input, select { width:100%; padding:15px; border:1px solid #d8e0ea; border-radius:14px; font-size:15px; background:#f8fafc; color:#111827; }
+    button { width:100%; margin-top:14px; border:none; border-radius:16px; padding:16px; font-size:16px; font-weight:800; cursor:pointer; }
+    .primary { background:#2563eb; color:white; }
+    .premium { background:#0f172a; color:white; }
+    .note { text-align:center; color:#64748b; font-size:13px; font-weight:700; margin-top:12px; }
+    .result-hero { display:grid; grid-template-columns:1fr 130px; gap:20px; align-items:center; }
+    .vehicle-line { text-transform:uppercase; letter-spacing:.7px; color:#475569; font-size:13px; font-weight:900; margin-bottom:12px; }
+    .deal-title { font-size:42px; font-weight:900; margin:0 0 14px; letter-spacing:-1px; }
+    .deal-subtitle { color:#475569; font-size:16px; font-weight:700; margin-bottom:20px; }
+    .score-circle { height:112px; width:112px; border-radius:999px; background:#eef2f7; display:flex; align-items:center; justify-content:center; font-size:38px; font-weight:900; color:#0f172a; justify-self:end; }
+    .pill { display:inline-block; background:#e0f2fe; color:#075985; padding:9px 12px; border-radius:9px; font-weight:800; font-size:14px; }
+    .summary { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+    .metric { background:#f8fafc; border:1px solid #e5e7eb; border-radius:18px; padding:18px; }
+    .metric span { display:block; color:#64748b; font-size:13px; font-weight:800; margin-bottom:8px; }
+    .metric strong { font-size:27px; color:#0f172a; }
+    .good { color:#15803d; }
+    .fair { color:#ca8a04; }
+    .bad { color:#dc2626; }
+    .warning { background:#fff7ed; border:1px solid #fed7aa; }
+    .section-title { font-size:24px; margin:0 0 14px; }
+    .muted { color:#64748b; font-weight:600; }
+    ul { line-height:1.6; }
+    .comp { border-top:1px solid #e5e7eb; padding:18px 0; }
+    .comp:first-child { border-top:none; }
+    .comp-title { font-size:18px; font-weight:900; }
+    .comp-price { font-size:25px; font-weight:900; margin:6px 0; }
+    .details { color:#475569; line-height:1.6; font-weight:600; }
+    a { color:#2563eb; font-weight:900; }
+    @media(max-width:800px){ .grid,.summary,.result-hero{grid-template-columns:1fr;} .score-circle{justify-self:start;} .hero h1{font-size:32px;} .deal-title{font-size:34px;} }
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <h1>Car Deal Checker</h1>
+    <p>Know the fair price, what to offer, and which nearby cars are worth comparing.</p>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h2>Vehicle Details</h2>
+
+      <div class="grid">
+        <select id="year" onchange="loadMakes()"><option value="">Select Year</option></select>
+        <select id="make" onchange="loadModels()" disabled><option value="">Select Make</option></select>
+        <select id="model" onchange="loadTrims()" disabled><option value="">Select Model</option></select>
+        <select id="trim" disabled><option value="">Select Trim</option></select>
+
+        <input id="mileage" placeholder="Mileage, e.g. 45000">
+        <input id="price" placeholder="Asking price, e.g. 18000">
+        <input id="zip" placeholder="ZIP code, e.g. 75035">
+
+        <select id="radius">
+          <option value="25">25 miles</option>
+          <option value="50">50 miles</option>
+          <option value="75" selected>75 miles</option>
+          <option value="100">100 miles</option>
+          <option value="200">200 miles</option>
+        </select>
+
+        <input id="unlockCode" placeholder="Live comps unlock code, e.g. PAID-DEMO">
+      </div>
+
+      <button class="primary" onclick="runFreeEstimate()">Get Free Estimate</button>
+      <button class="premium" onclick="runLiveComps()">Run Live Market Comps — $1 Demo</button>
+      <div class="note">Live comps may use a MarketCheck call. Free estimate does not.</div>
+    </div>
+
+    <div id="results"></div>
+  </div>
+
+<script>
+let lastResultData = null;
+let lastIsLive = false;
+
+async function loadYears() {
+  const res = await fetch('/api/years');
+  const data = await res.json();
+  const el = document.getElementById('year');
+
+  data.years.forEach(y => {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y;
+    el.appendChild(opt);
+  });
+}
+
+async function loadMakes() {
+  const year = document.getElementById('year').value;
+  const make = document.getElementById('make');
+  const model = document.getElementById('model');
+  const trim = document.getElementById('trim');
+
+  make.innerHTML = '<option value="">Loading makes...</option>';
+  model.innerHTML = '<option value="">Select Model</option>';
+  trim.innerHTML = '<option value="Any Trim">Any Trim</option>';
+  model.disabled = true;
+  trim.disabled = true;
+
+  if (!year) {
+    make.disabled = true;
+    return;
+  }
+
+  const res = await fetch(`/api/makes?year=${year}`);
+  const data = await res.json();
+
+  make.innerHTML = '<option value="">Select Make</option>';
+
+  data.makes.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    make.appendChild(opt);
+  });
+
+  make.disabled = false;
+}
+
+async function loadModels() {
+  const year = document.getElementById('year').value;
+  const make = document.getElementById('make').value;
+  const model = document.getElementById('model');
+  const trim = document.getElementById('trim');
+
+  model.innerHTML = '<option value="">Loading models...</option>';
+  trim.innerHTML = '<option value="Any Trim">Any Trim</option>';
+  trim.disabled = true;
+
+  if (!year || !make) {
+    model.disabled = true;
+    return;
+  }
+
+  const res = await fetch(`/api/models?year=${year}&make=${encodeURIComponent(make)}`);
+  const data = await res.json();
+
+  model.innerHTML = '<option value="">Select Model</option>';
+
+  data.models.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    model.appendChild(opt);
+  });
+
+  model.disabled = false;
+}
+
+async function loadTrims() {
+  const make = document.getElementById('make').value;
+  const model = document.getElementById('model').value;
+  const trim = document.getElementById('trim');
+
+  trim.innerHTML = '<option value="Any Trim">Any Trim</option>';
+
+  if (!make || !model) {
+    trim.disabled = true;
+    return;
+  }
+
+  const res = await fetch(`/api/trims?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}`);
+  const data = await res.json();
+
+  trim.innerHTML = '';
+
+  data.trims.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = t;
+    trim.appendChild(opt);
+  });
+
+  trim.disabled = false;
+}
+
+window.onload = loadYears;
+
+function payload() {
+  return {
+    year: document.getElementById('year').value,
+    make: document.getElementById('make').value,
+    model: document.getElementById('model').value,
+    trim: document.getElementById('trim').value || 'Any Trim',
+    mileage: Number(document.getElementById('mileage').value),
+    price: Number(document.getElementById('price').value),
+    zip: document.getElementById('zip').value.trim(),
+    radius: Number(document.getElementById('radius').value),
+    unlockCode: document.getElementById('unlockCode').value.trim()
+  };
+}
+
+function validate(p) {
+  return p.year && p.make && p.model && p.mileage && p.price && p.zip;
+}
+
+function formatMoney(n) {
+  return '$' + Number(n || 0).toLocaleString();
+}
+
+function ratingClass(r) {
+  if (r === 'Great Deal') return 'good';
+  if (r === 'Overpriced') return 'bad';
+  return 'fair';
+}
+
+function scoreFromRating(data) {
+  if (data.rating === 'Great Deal') return 100;
+  if (data.rating === 'Fair Deal') return 75;
+  return 45;
+}
+
+function vehicleLine() {
+  const p = payload();
+  return `${p.year} ${p.make} ${p.model} ${p.trim || ''}`.trim();
+}
+
+async function runFreeEstimate() {
+  const p = payload();
+  const results = document.getElementById('results');
+
+  if (!validate(p)) {
+    results.innerHTML = '<div class="card warning">Please fill out year, make, model, mileage, price, and ZIP.</div>';
+    return;
+  }
+
+  results.innerHTML = '<div class="card">Building free estimate...</div>';
+
+  const res = await fetch('/api/free-estimate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(p)
+  });
+
+  renderResult(await res.json(), false);
+}
+
+async function runLiveComps() {
+  const p = payload();
+  const results = document.getElementById('results');
+
+  if (!validate(p)) {
+    results.innerHTML = '<div class="card warning">Please fill out year, make, model, mileage, price, and ZIP.</div>';
+    return;
+  }
+
+  results.innerHTML = '<div class="card">Running paid live comps...</div>';
+
+  const res = await fetch('/api/live-comps', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(p)
+  });
+
+  const data = await res.json();
+
+  if (data.error) {
+    results.innerHTML = `<div class="card warning"><strong>Error:</strong> ${data.error}</div>`;
+    return;
+  }
+
+  renderResult(data, true);
+}
+
+function sortComps(comps, sortBy) {
+  const sorted = [...comps];
+
+  if (sortBy === 'price-low') {
+    sorted.sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
+  }
+
+  if (sortBy === 'price-high') {
+    sorted.sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
+  }
+
+  if (sortBy === 'mileage-low') {
+    sorted.sort((a, b) => Number(a.miles || 999999999) - Number(b.miles || 999999999));
+  }
+
+  if (sortBy === 'mileage-high') {
+    sorted.sort((a, b) => Number(b.miles || 0) - Number(a.miles || 0));
+  }
+
+  if (sortBy === 'distance') {
+    sorted.sort((a, b) => Number(a.dist || 999999999) - Number(b.dist || 999999999));
+  }
+
+  return sorted;
+}
+
+function updateCompSort() {
+  if (lastResultData && lastIsLive) {
+    renderResult(lastResultData, true, true);
+  }
+}
+
+function renderResult(data, isLive, preserveSort = false) {
+  lastResultData = data;
+  lastIsLive = isLive;
+
+  const results = document.getElementById('results');
+  const delta = Number(data.fairPrice || 0) - Number(data.askingPrice || 0);
+  const deltaText = delta >= 0
+    ? `This is about ${formatMoney(delta)} under adjusted market.`
+    : `This is about ${formatMoney(Math.abs(delta))} over adjusted market.`;
+
+  const currentSort = preserveSort && document.getElementById('compSort')
+    ? document.getElementById('compSort').value
+    : 'price-low';
+
+  const sortedComps = isLive ? sortComps(data.comps || [], currentSort) : [];
+
+  results.innerHTML = `
+    <div class="card">
+      <div class="result-hero">
+        <div>
+          <div class="vehicle-line">${vehicleLine()}</div>
+          <h2 class="deal-title ${ratingClass(data.rating)}">${data.rating}</h2>
+          <div class="deal-subtitle">
+            ${isLive ? `${data.compCount || 0} priced nearby comps found. ` : 'Free estimate generated. '}
+            ${deltaText}
+          </div>
+          <span class="pill">${data.confidence || 'Medium confidence'}</span>
+        </div>
+        <div class="score-circle">${scoreFromRating(data)}</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="summary">
+        <div class="metric"><span>Suggested Offer</span><strong>${formatMoney(data.suggestedOffer)}</strong></div>
+        <div class="metric"><span>Fair Price</span><strong>${formatMoney(data.fairPrice)}</strong></div>
+        <div class="metric"><span>Asking Price</span><strong>${formatMoney(data.askingPrice)}</strong></div>
+        <div class="metric"><span>Rating</span><strong class="${ratingClass(data.rating)}">${data.rating}</strong></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="section-title">Why This Price?</h2>
+      ${data.rangeLow ? `<p><strong>Estimated Range:</strong> ${formatMoney(data.rangeLow)} – ${formatMoney(data.rangeHigh)}</p>` : ''}
+      ${data.trimUsed ? `<p><strong>Trim used:</strong> ${data.trimUsed}</p>` : ''}
+      ${data.totalReturnedCount ? `<p><strong>Total listings found:</strong> ${data.totalReturnedCount}</p>` : ''}
+      ${data.compCount ? `<p><strong>Priced comps used:</strong> ${data.compCount}</p>` : ''}
+      ${data.unavailablePriceCount ? `<p><strong>Listings with unavailable price:</strong> ${data.unavailablePriceCount}</p>` : ''}
+      <ul>${(data.why || []).map(x => `<li>${x}</li>`).join('')}</ul>
+      ${data.negotiationScript ? `<h3>Negotiation Script</h3><p>${data.negotiationScript}</p>` : ''}
+    </div>
+
+    ${isLive ? `
+      <div class="card">
+        <h2 class="section-title">Comparable Listings</h2>
+        <p class="muted">Sort nearby comps by what matters most to you.</p>
+
+        <select id="compSort" onchange="updateCompSort()">
+          <option value="price-low" ${currentSort === 'price-low' ? 'selected' : ''}>Price: lowest first</option>
+          <option value="price-high" ${currentSort === 'price-high' ? 'selected' : ''}>Price: highest first</option>
+          <option value="mileage-low" ${currentSort === 'mileage-low' ? 'selected' : ''}>Mileage: lowest first</option>
+          <option value="mileage-high" ${currentSort === 'mileage-high' ? 'selected' : ''}>Mileage: highest first</option>
+          <option value="distance" ${currentSort === 'distance' ? 'selected' : ''}>Distance: closest first</option>
+        </select>
+
+        ${sortedComps.map(car => `
+          <div class="comp">
+            <div class="comp-title">${car.displayYear || ''} ${car.displayMake || ''} ${car.displayModel || ''} ${car.displayTrim || ''}</div>
+            <div class="comp-price">${formatMoney(car.price)}</div>
+            <div class="details">
+              Mileage: ${car.miles ? car.miles.toLocaleString() : 'N/A'} mi<br>
+              Distance: ${car.dist || 'N/A'} mi away<br>
+              Dealer: ${car.dealer?.name || 'Unknown'}<br>
+              Location: ${car.dealer?.city || ''}, ${car.dealer?.state || ''}
+            </div>
+            ${car.vdp_url ? `<p><a href="${car.vdp_url}" target="_blank">View listing</a></p>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+  `;
+}
+</script>
+</body>
+</html>
