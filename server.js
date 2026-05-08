@@ -16,7 +16,6 @@ async function cachedGet(key, url) {
   if (cache.has(key)) return cache.get(key);
 
   const res = await axios.get(url);
-
   cache.set(key, res.data);
 
   return res.data;
@@ -34,14 +33,53 @@ function normalizeMarketCheckModel(make, model) {
     if (/f\s*-?\s*150/i.test(md)) return 'F-150';
     if (/f\s*-?\s*250/i.test(md)) return 'F-250';
     if (/f\s*-?\s*350/i.test(md)) return 'F-350';
+    if (/f\s*-?\s*450/i.test(md)) return 'F-450';
+    if (/f\s*-?\s*550/i.test(md)) return 'F-550';
   }
 
   return md;
 }
 
+function buildMarketCheckParams({ year, make, model, zip, radius }) {
+  const marketModel = normalizeMarketCheckModel(make, model);
+
+  const params = {
+    api_key: MARKETCHECK_API_KEY,
+    year,
+    make,
+    zip,
+    radius: radius || 75,
+    rows: 50
+  };
+
+  if (String(make || '').toLowerCase() === 'ford') {
+    if (/^F-?250$/i.test(marketModel)) {
+      params.query = `${year} Ford F-250 Super Duty`;
+      return params;
+    }
+
+    if (/^F-?350$/i.test(marketModel)) {
+      params.query = `${year} Ford F-350 Super Duty`;
+      return params;
+    }
+
+    if (/^F-?450$/i.test(marketModel)) {
+      params.query = `${year} Ford F-450 Super Duty`;
+      return params;
+    }
+
+    if (/^F-?550$/i.test(marketModel)) {
+      params.query = `${year} Ford F-550 Super Duty`;
+      return params;
+    }
+  }
+
+  params.model = marketModel;
+  return params;
+}
+
 app.get('/api/years', (req, res) => {
   const currentYear = new Date().getFullYear() + 1;
-
   const years = [];
 
   for (let y = currentYear; y >= 1995; y--) {
@@ -63,9 +101,12 @@ app.get('/api/makes', async (req, res) => {
       .sort();
 
     res.json({ makes });
+  } catch (err) {
+    console.error(err.response?.data || err.message);
 
-  } catch {
-    res.status(500).json({ error: 'Failed loading makes' });
+    res.status(500).json({
+      error: 'Failed loading makes'
+    });
   }
 });
 
@@ -83,9 +124,12 @@ app.get('/api/models', async (req, res) => {
       .sort();
 
     res.json({ models });
+  } catch (err) {
+    console.error(err.response?.data || err.message);
 
-  } catch {
-    res.status(500).json({ error: 'Failed loading models' });
+    res.status(500).json({
+      error: 'Failed loading models'
+    });
   }
 });
 
@@ -105,21 +149,19 @@ app.post('/api/live-comps', async (req, res) => {
       });
     }
 
-    const marketModel = normalizeMarketCheckModel(make, model);
+    const params = buildMarketCheckParams({
+      year,
+      make,
+      model,
+      zip,
+      radius
+    });
+
+    console.log('MarketCheck search params:', params);
 
     const response = await axios.get(
       'https://api.marketcheck.com/v2/search/car/active',
-      {
-        params: {
-          api_key: MARKETCHECK_API_KEY,
-          year,
-          make,
-          model: marketModel,
-          zip,
-          radius: radius || 75,
-          rows: 50
-        }
-      }
+      { params }
     );
 
     const listings = response.data.listings || [];
@@ -155,7 +197,6 @@ app.post('/api/live-comps', async (req, res) => {
       total: comps.length,
       comps
     });
-
   } catch (err) {
     console.error(err.response?.data || err.message);
 
