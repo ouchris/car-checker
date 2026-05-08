@@ -165,6 +165,12 @@ app.post('/api/live-comps', async (req, res) => {
   }
 });
 
-app.listen(3000, () => {
-  console.log('Running on http://localhost:3000');
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/public/index.html');
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Running on port ${PORT}`);
 });
