@@ -54,22 +54,22 @@ function buildMarketCheckParams({ year, make, model, zip, radius }) {
 
   if (String(make || '').toLowerCase() === 'ford') {
     if (/^F-?250$/i.test(marketModel)) {
-      params.query = `${year} Ford F-250 Super Duty`;
+      params.model = 'F-250 Super Duty';
       return params;
     }
 
     if (/^F-?350$/i.test(marketModel)) {
-      params.query = `${year} Ford F-350 Super Duty`;
+      params.model = 'F-350 Super Duty';
       return params;
     }
 
     if (/^F-?450$/i.test(marketModel)) {
-      params.query = `${year} Ford F-450 Super Duty`;
+      params.model = 'F-450 Super Duty';
       return params;
     }
 
     if (/^F-?550$/i.test(marketModel)) {
-      params.query = `${year} Ford F-550 Super Duty`;
+      params.model = 'F-550 Super Duty';
       return params;
     }
   }
