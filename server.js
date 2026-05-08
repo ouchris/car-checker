@@ -7,7 +7,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(__dirname));
 
 const MARKETCHECK_API_KEY = process.env.MARKETCHECK_API_KEY;
 const cache = new Map();
@@ -166,7 +166,7 @@ app.post('/api/live-comps', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/public/index.html');
+  res.sendFile(__dirname + '/index.html');
 });
 
 const PORT = process.env.PORT || 3000;
